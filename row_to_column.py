@@ -2,11 +2,22 @@ import csv
 import pandas as pd
 import os
 
-convertfile = '2012 Firdale.csv'
-projectbook = '2012 Firdale B1C01 POB.csv'
+convertfile = raw_input('What original rating sheet would you like to convert?:')
+convertfile += '.csv'
+projectbook = raw_input('What project book file would you like that data to go into?:')
+projectbook += '.csv'
 
-#we want to open both files and grab only the columns that are the same (unique identifiers only from convert file)
 
+def final_csv(path_file):
+    num = path_file.find('.')
+    printname = path_file[:num]
+    printname += '_with_rating.csv'
+    return printname
+
+
+rating_final = final_csv(projectbook)
+
+# we want to open both files and grab only the columns that are the same (unique identifiers only from convert file)
 with open(projectbook, 'r') as res_file:
     res_reader = csv.DictReader(res_file)
     results_headers = res_reader.fieldnames
@@ -56,11 +67,6 @@ for i in new_header:
         similar_header.append(i)
 convert_header.append('Rating')
 
-
-print 'convert_header: ',convert_header
-
-
-
 # Make a temp file that has all the headers and ratings going down (row wise instead of column).  Once in a new file
 # it can be read as a DictReader so we can extract the proper columns into a merge file with the Results file.
 
@@ -68,9 +74,7 @@ with open(projectbook, 'r') as f1:  # open results file
     reader = csv.DictReader(f1)
     res_headers = reader.fieldnames
 
-    print 'results header: ',res_headers
-
-# write a new file with headers, and the ratings going down instead of to the side
+    # write a new file with headers, and the ratings going down instead of to the side
 
     with open('temp.csv', 'w') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', lineterminator='\n')
@@ -87,24 +91,21 @@ with open(projectbook, 'r') as f1:  # open results file
             else:
 
                 dragcopy = 1
-                rating_column = (header_length)
+                rating_column = header_length
                 while dragcopy < total_ratings + 1:
-                    # write the sample info into the new spreadheet
+                    # write the sample info into the new spreadsheet
                     new_transfer = bits[:header_length]
-
-                    # write in the drag copy number (rating #) into the next column and add 1 to the count, this needs to be looped for the same amount of times as there are ratings
                     new_transfer.append(dragcopy)
                     dragcopy += 1
 
-                    # add the rating to the next column for 'Rating'.  This needs to be done for the total_ratings amount
+                    # add the rating to the next column for 'Rating'.
                     new_transfer.append(bits[rating_column])
                     rating_column += 1
-                    # write the line in the while statement
                     writer.writerow(new_transfer)
         n.close()
 
-#  open the convertfile and the temp file.  Write the proper columns, and only transfer the temp file columns
-#  that are present in convert file
+# open the converted file and the temp file.  Write the proper columns, and only transfer the temp file columns
+# that are present in convert file
 
 f = pd.read_csv('temp.csv')
 new_f = f[convert_header]
@@ -115,13 +116,13 @@ projectbook_df = pd.read_csv(projectbook, keep_default_na=False, na_values=[""])
 
 merge_df = pd.read_csv('merge.csv', keep_default_na=False, na_values=[""])
 
-merged_left = pd.merge(left=projectbook_df, right=merge_df, how ='left',
+merged_left = pd.merge(left=projectbook_df, right=merge_df, how='left',
                        left_on=similar_header,
                        right_on=similar_header)
 
 # write the merged file to a csv
 
-merged_left.to_csv('example.csv', index=False)
+merged_left.to_csv(rating_final, index=False)
 
 os.remove('temp.csv')
 os.remove('merge.csv')
