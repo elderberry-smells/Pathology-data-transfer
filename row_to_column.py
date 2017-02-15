@@ -1,128 +1,139 @@
 import csv
 import pandas as pd
-import os
 
-convertfile = raw_input('What original rating sheet would you like to convert?:')
-convertfile += '.csv'
-projectbook = raw_input('What project book file would you like that data to go into?:')
-projectbook += '.csv'
+raw_datafile = 'A18,2012 ML complete&summ Field Ratingsl.csv'
+projectbook = '2012 Moon Lake SK 3A0123 POB.csv'
+
+
+def converted_csv(path_file):
+    """create a file name for the end resulting csv file:
+    :param path_file:
+    """
+    num = path_file.find('.')
+    printname = path_file[:num]
+    printname += '_converted.csv'
+    return printname
 
 
 def final_csv(path_file):
+    """create a file name for the end resulting csv file:
+    :param path_file:
+    """
     num = path_file.find('.')
     printname = path_file[:num]
     printname += '_with_rating.csv'
     return printname
 
 
-rating_final = final_csv(projectbook)
+def rating_num(rating_file):
+    """open a path rating file and determine the amount of ratings were done in the file
+    :param rating_file:
+    """
+    r = open(rating_file, 'rb').read().split('\r\n')
 
-# we want to open both files and grab only the columns that are the same (unique identifiers only from convert file)
-with open(projectbook, 'r') as res_file:
-    res_reader = csv.DictReader(res_file)
-    results_headers = res_reader.fieldnames
+    header_line = ['Entry Book Season', 'Entry Book Project', 'Lab Source Book Name', 'Location', 'Field Book Name']
+    for line in r:
+        bits = line.split(',')
+        if bits[0] in header_line:
+            header_ids = bits[:]
+            ratings = []
+            for info in header_ids:
+                try:
+                    if int(info) in range(1, 200):
+                        ratings.append(info)
+                except:
+                    continue
 
-r = open(convertfile, 'rb')
+            return ratings
 
-# grabbing the header line from the convert file, and extracting the # of ratings for each entry
-header_line = ['Entry Book Season', 'Entry Book Project']
-header_length = 0
-new_header = []
 
-for line in r:
-    bits = line.split(',')
-    if bits[0] in header_line:
-        headers = bits[:]
-        ratings = []
-        for i in headers:
+def header_id(raw_data):
+    """open the raw data file and find only sample info headers, excluding the columns of ratings
+    :param raw_data:
+    """
+    with open(raw_data, 'rb') as con_file:
+        con_reader = csv.DictReader(con_file)
+        con_headers = con_reader.fieldnames
+
+        header_info = []
+        for ix in con_headers:
             try:
-                i = int(i)
-                ratings.append(i)
+                ix = int(ix)
             except:
-                continue
+                if ix == "":
+                    continue
+                else:
+                    header_info.append(ix)
 
-        # make a list of all the headers in the file, and assign them to a variable
-        header_length = 0
-        for i in headers:
-            try:
-                i = int(i)
-                break
-            except:
-                header_length += 1
+        return header_info
 
-        total_ratings = int(ratings[-1])
-        new_header = bits[:header_length]
-        new_header.append('Drag Copy#')
-        new_header.append('Rating')
 
-r.close()
+def similar_headers(converted_data, pob_data):
+    with open(converted_data, 'rb') as conv:
+        reader1 = csv.DictReader(conv)
+        conv_headers = reader1.fieldnames
+        with open(pob_data, 'rb') as po:
+            reader2 = csv.DictReader(po)
+            pob_header = reader2.fieldnames
 
-convert_header = []
-similar_header = []
-for i in new_header:
-    if i not in results_headers:
-        continue
-    else:
-        convert_header.append(i)
-        similar_header.append(i)
-convert_header.append('Rating')
+            sim_head = []
+            for iz in conv_headers:
+                if iz in pob_header:
+                    if iz == 'Name':
+                        continue
+                    else:
+                        sim_head.append(iz)
+                else:
+                    continue
+            sim_head.append('Rating')
+            return sim_head
 
-# Make a temp file that has all the headers and ratings going down (row wise instead of column).  Once in a new file
-# it can be read as a DictReader so we can extract the proper columns into a merge file with the Results file.
 
-with open(projectbook, 'r') as f1:  # open results file
-    reader = csv.DictReader(f1)
-    res_headers = reader.fieldnames
+conv_file = converted_csv(raw_datafile)  # get a converted file name
+rating_final = final_csv(projectbook)  # give a final naming convention to the file you create
+rate_list = rating_num(raw_datafile)  # get the list of ratings in the original raw data file
+original_headers = header_id(raw_datafile)  # grab the header info from the raw data file
+converted_header = header_id(raw_datafile)  # make a converted header list variable
+converted_header.extend(['Drag Copy#', 'Rating'])  # add the missing columns required on converted file
 
-    # write a new file with headers, and the ratings going down instead of to the side
+"""open the raw_datafile and write a new file that converts the ratings to a row by row format, saving into a new
+file named x_converted"""
 
-    with open('temp.csv', 'w') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', lineterminator='\n')
-        writer.writerow(new_header)
+with open(conv_file, 'wb') as convertfile:
+    writer = csv.writer(convertfile, delimiter=',', lineterminator='\n')
+    writer.writerow(converted_header)
 
-        n = open(convertfile, 'rb')
+    with open(raw_datafile, 'rb') as raw:
+        raw_reader = csv.DictReader(raw)
+        raw_headers = raw_reader.fieldnames
+        print raw_headers
+        print rate_list
 
-        for line in n:
-            bits = line.split(',')
+        for row in raw_reader:  # read the file line by line
+            drag_copy = 1
+            for number in rate_list:
+                new_line = [row[i] for i in original_headers]
+                new_line.append(drag_copy)
+                new_line.append(row[number])
+                drag_copy += 1
+                writer.writerow(new_line)
 
-            if bits[0] == '' or bits[0] in header_line:
-                continue
+with open(projectbook, 'rb') as pob:
+    reader = csv.DictReader(pob)
+    pob_headers = reader.fieldnames
 
-            else:
+# using pandas, make a dataframe from the converted file that only has the matching header names to the POB
 
-                dragcopy = 1
-                rating_column = header_length
-                while dragcopy < total_ratings + 1:
-                    # write the sample info into the new spreadsheet
-                    new_transfer = bits[:header_length]
-                    new_transfer.append(dragcopy)
-                    dragcopy += 1
+pre_merge_headers = similar_headers(conv_file, projectbook)
 
-                    # add the rating to the next column for 'Rating'.
-                    new_transfer.append(bits[rating_column])
-                    rating_column += 1
-                    writer.writerow(new_transfer)
-        n.close()
 
-# open the converted file and the temp file.  Write the proper columns, and only transfer the temp file columns
-# that are present in convert file
+# pre_merge_headers = ['Entry #', 'Geno_Id', 'Local Range', 'Plot #', 'Drag Copy#', 'Rating'] # use for Viterra NB data
+print pre_merge_headers
 
-f = pd.read_csv('temp.csv')
-new_f = f[convert_header]
-new_f.to_csv('merge.csv', index=False)
-
-# merge the 2 tables together with the pandas commands (left join on the Results file)
+df = pd.read_csv(conv_file)
+mdf = df[pre_merge_headers]
 projectbook_df = pd.read_csv(projectbook, keep_default_na=False, na_values=[""])
 
-merge_df = pd.read_csv('merge.csv', keep_default_na=False, na_values=[""])
-
-merged_left = pd.merge(left=projectbook_df, right=merge_df, how='left',
-                       left_on=similar_header,
-                       right_on=similar_header)
-
-# write the merged file to a csv
+merged_left = pd.merge(left=projectbook_df, right=mdf, how='left')
 
 merged_left.to_csv(rating_final, index=False)
-
-os.remove('temp.csv')
-os.remove('merge.csv')
