@@ -1,2 +1,2 @@
 # Pathology-data-transfer
-small bit of code used to convert ratings in a row-wise format to a column format.  Update the 2 initial fields for the file you want to convert, and the file you want to update with the converted ratings (the projectbook).  Intial files have to be in csv format, and the project book column 'Rating' has to be deleted.
+small bit of code used to convert ratings in a row-wise format to a column format.  The script looks into a target directory for the raw data files (csv format) and matches it to the POB file.  The POB is then uploaded with the raw data by converting the raw data to a column based format instead of row, then merges the 2 files with pandas.
