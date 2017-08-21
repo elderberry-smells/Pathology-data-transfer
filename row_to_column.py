@@ -1,8 +1,29 @@
 import csv
 import pandas as pd
+import glob
+import os
+import time
 
-raw_datafile = 'A18,2012 ML complete&summ Field Ratingsl.csv'
-projectbook = '2012 Moon Lake SK 3A0123 POB.csv'
+path = r'\\CA016NDOWD001\SaskatoonResearchStation\6. Pathology\Variety and VAT\2017 data conversion'
+extension = 'csv'
+os.chdir(path)
+csv_result = [x for x in glob.glob('*.{}'.format(extension))]
+
+# get the raw data files in a dictionary and match them to their POB counterpart
+rawPOB = {}
+for csvfiles in csv_result:
+    if '_report' in csvfiles:
+        continue
+    if '_converted' in csvfiles:
+        continue
+    if 'POB' in csvfiles:
+        continue
+    else:
+        """create a POB file name to merge into"""
+        pobFile = csvfiles.replace('.csv', ' POB.csv')
+        rawPOB[csvfiles] = pobFile
+
+completed_path = r'\\CA016NDOWD001\SaskatoonResearchStation\6. Pathology\Variety and VAT\2017 data conversion\completed'
 
 
 def converted_csv(path_file):
@@ -56,14 +77,14 @@ def header_id(raw_data):
         con_headers = con_reader.fieldnames
 
         header_info = []
-        for ix in con_headers:
+        for column in con_headers:
             try:
-                ix = int(ix)
+                column = int(column)
             except:
-                if ix == "":
+                if column == "":
                     continue
                 else:
-                    header_info.append(ix)
+                    header_info.append(column)
 
         return header_info
 
@@ -88,52 +109,65 @@ def similar_headers(converted_data, pob_data):
             sim_head.append('Rating')
             return sim_head
 
+for key, val in rawPOB.items():
+    print 'Merging raw datafile: {} with POB Book: {} \n'.format(key, val)
 
-conv_file = converted_csv(raw_datafile)  # get a converted file name
-rating_final = final_csv(projectbook)  # give a final naming convention to the file you create
-rate_list = rating_num(raw_datafile)  # get the list of ratings in the original raw data file
-original_headers = header_id(raw_datafile)  # grab the header info from the raw data file
-converted_header = header_id(raw_datafile)  # make a converted header list variable
-converted_header.extend(['Drag Copy#', 'Rating'])  # add the missing columns required on converted file
+    conv_file = converted_csv(key)  # get a converted file name
+    rating_final = final_csv(val)  # give a final naming convention to the file you create
+    rate_list = rating_num(key)  # get the list of ratings in the original raw data file
+    original_headers = header_id(key)  # grab the header info from the raw data file
+    converted_header = header_id(key)  # make a converted header list variable
+    converted_header.extend(['Drag Copy#', 'Rating'])  # add the missing columns required on converted file
 
-"""open the raw_datafile and write a new file that converts the ratings to a row by row format, saving into a new
-file named x_converted"""
+    """open the raw_datafile and write a new file that converts the ratings to a row by row format, saving into a new
+    file named x_converted"""
 
-with open(conv_file, 'wb') as convertfile:
-    writer = csv.writer(convertfile, delimiter=',', lineterminator='\n')
-    writer.writerow(converted_header)
+    with open(conv_file, 'wb') as convertfile:
+        writer = csv.writer(convertfile, delimiter=',', lineterminator='\n')
+        writer.writerow(converted_header)
 
-    with open(raw_datafile, 'rb') as raw:
-        raw_reader = csv.DictReader(raw)
-        raw_headers = raw_reader.fieldnames
-        print raw_headers
-        print rate_list
+        with open(key, 'rb') as raw:
+            raw_reader = csv.DictReader(raw)
+            raw_headers = raw_reader.fieldnames
 
-        for row in raw_reader:  # read the file line by line
-            drag_copy = 1
-            for number in rate_list:
-                new_line = [row[i] for i in original_headers]
-                new_line.append(drag_copy)
-                new_line.append(row[number])
-                drag_copy += 1
-                writer.writerow(new_line)
+            for row in raw_reader:  # read the file line by line
+                drag_copy = 1
+                for number in rate_list:
+                    new_line = [row[i] for i in original_headers]
+                    new_line.append(drag_copy)
+                    new_line.append(row[number])
+                    drag_copy += 1
+                    writer.writerow(new_line)
 
-with open(projectbook, 'rb') as pob:
-    reader = csv.DictReader(pob)
-    pob_headers = reader.fieldnames
+    with open(val, 'rb') as pob:
+        reader = csv.DictReader(pob)
+        pob_headers = reader.fieldnames
 
-# using pandas, make a dataframe from the converted file that only has the matching header names to the POB
+    # using pandas, make a dataframe from the converted file that only has the matching header names to the POB
 
-pre_merge_headers = similar_headers(conv_file, projectbook)
+    pre_merge_headers = similar_headers(conv_file, val)
 
+    # pre_merge_headers = ['Entry #', 'Geno_Id', 'Local Range', 'Plot #', 'Drag Copy#', 'Rating']
 
-# pre_merge_headers = ['Entry #', 'Geno_Id', 'Local Range', 'Plot #', 'Drag Copy#', 'Rating'] # use for Viterra NB data
-print pre_merge_headers
+    if 'Comments' in pre_merge_headers:
+        pre_merge_headers.remove('Comments')
 
-df = pd.read_csv(conv_file)
-mdf = df[pre_merge_headers]
-projectbook_df = pd.read_csv(projectbook, keep_default_na=False, na_values=[""])
+    df = pd.read_csv(conv_file)
+    mdf = df[pre_merge_headers]
+    projectbook_df = pd.read_csv(val, keep_default_na=False, na_values=[""])
 
-merged_left = pd.merge(left=projectbook_df, right=mdf, how='left')
+    merged_left = pd.merge(left=projectbook_df, right=mdf, how='left')
+    os.remove(conv_file)
+    os.remove(key)
+    os.remove(val)
 
-merged_left.to_csv(rating_final, index=False)
+    os.chdir(completed_path)
+    merged_left.to_csv(rating_final, index=False)
+
+    time.sleep(1)
+
+    print "Merge completed.  {} moved to completed folder \n". format(val)
+
+print "Completed analysis on all files in folder"
+
+time.sleep(2)
