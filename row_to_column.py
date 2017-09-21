@@ -109,6 +109,13 @@ def similar_headers(converted_data, pob_data):
             sim_head.append('Rating')
             return sim_head
 
+
+def entries_to_remove(entries, the_dict):
+    for keys in entries:
+        if keys in the_dict:
+            del the_dict[keys]
+
+
 for key, val in rawPOB.items():
     print 'Merging raw datafile: {} with POB Book: {} \n'.format(key, val)
 
@@ -123,21 +130,64 @@ for key, val in rawPOB.items():
     file named x_converted"""
 
     with open(conv_file, 'wb') as convertfile:
-        writer = csv.writer(convertfile, delimiter=',', lineterminator='\n')
-        writer.writerow(converted_header)
 
         with open(key, 'rb') as raw:
             raw_reader = csv.DictReader(raw)
             raw_headers = raw_reader.fieldnames
 
-            for row in raw_reader:  # read the file line by line
-                drag_copy = 1
-                for number in rate_list:
-                    new_line = [row[i] for i in original_headers]
-                    new_line.append(drag_copy)
-                    new_line.append(row[number])
-                    drag_copy += 1
-                    writer.writerow(new_line)
+            # if the format is the old 0, 1, 2, 3, 4, 5, n rating scale, convert it differently
+            if "0" in raw_headers:
+                key_list = ["0", "1", "2", "3", "4", "5"]
+                con_headers = [i for i in raw_headers if i not in key_list]
+                if 'HMCoord' not in con_headers:
+                    con_headers.extend(['HMCoord'])
+                    nohm = True
+                con_headers.extend(['Drag Copy#', 'Rating'])
+                dwriter = csv.DictWriter(convertfile, fieldnames=con_headers)
+                dwriter.writeheader()
+
+                for row in raw_reader:
+                    countn = 1
+                    for k, v in row.items():
+                        #  make the HMCoord column based on the Range and pass values
+                        if nohm == True:
+                            if row['Range'] == '': continue
+                            else:
+                                if int(row['Range']) < 10 and int(row['Pass']) in range(10, 100):
+                                    row['HMCoord'] = str(row['Range'] + '0' + row['Pass'])
+                                elif int(row['Range']) >= 10 and int(row['Pass']) < 10:
+                                    row['HMCoord'] = str(row['Range'] + '00' + row['Pass'])
+                                elif int(row['Range']) < 10 and int(row['Pass']) < 10:
+                                    row['HMCoord'] = str(row['Range'] + '00' + row['Pass'])
+                                elif int(row['Range']) > 10 and int(row['Pass']) in range(10, 100):
+                                    row['HMCoord'] = str(row['Range'] + '0' + row['Pass'])
+                                elif int(row['Pass']) > 99:
+                                    row['HMCoord'] = str(row['Range'] + row['Pass'])
+
+                        if k in key_list:
+                            # get info up to the ratings summaries into the dictionary
+                            new_dict = row
+                            entries_to_remove(key_list, new_dict)
+                            if v == '':
+                                continue
+                            else:
+                                for i in range(int(v)):
+                                    new_dict['Drag Copy#'] = countn
+                                    new_dict['Rating'] = k
+                                    countn += 1
+                                    dwriter.writerow(new_dict)
+
+            else:  # the file is in the numbered ratings format and can be dealt with as normal
+                writer = csv.writer(convertfile, delimiter=',', lineterminator='\n')
+                writer.writerow(converted_header)
+                for row in raw_reader:
+                    drag_copy = 1
+                    for number in rate_list:
+                        new_line = [row[i] for i in original_headers]
+                        new_line.append(drag_copy)
+                        new_line.append(row[number])
+                        drag_copy += 1
+                        writer.writerow(new_line)
 
     with open(val, 'rb') as pob:
         reader = csv.DictReader(pob)
@@ -154,8 +204,8 @@ for key, val in rawPOB.items():
 
     df = pd.read_csv(conv_file)
     mdf = df[pre_merge_headers]
-    projectbook_df = pd.read_csv(val, keep_default_na=False, na_values=[""])
 
+    projectbook_df = pd.read_csv(val, keep_default_na=False, na_values=[""])
     merged_left = pd.merge(left=projectbook_df, right=mdf, how='left')
     os.remove(conv_file)
     os.remove(key)
